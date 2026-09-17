@@ -1,0 +1,30 @@
+.gradle/
+build/
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+local.properties
+*.iml
+.idea/caches/
+.idea/libraries/
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+
+# Packaged and diagnostic outputs
+*.apk
+*.aab
+*.hprof
+
+# Internal design and migration notes
+/ARCHITECTURE.md
+/MIGRATION_PLAN.md
+/docs/
+
+# Local release signing credentials
+/.signing/

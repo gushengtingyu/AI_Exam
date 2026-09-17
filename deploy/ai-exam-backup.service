@@ -1,0 +1,11 @@
+[Unit]
+Description=AI Exam database snapshot and upload backup
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/semester-paper-insight/deployment/backup.py
+Nice=15
+IOSchedulingClass=idle
+CPUQuota=20%
+MemoryMax=128M
+UMask=0077

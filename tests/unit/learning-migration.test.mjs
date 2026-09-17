@@ -1,0 +1,31 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { readFileSync, readdirSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
+
+test("learning migration preserves historical records and migration ledger", () => {
+  const database = new DatabaseSync(":memory:");
+  database.exec("PRAGMA foreign_keys=ON");
+  database.exec("CREATE TABLE _app_migrations(name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)");
+  const root = new URL("../../prisma/migrations/", import.meta.url);
+  const migrations = readdirSync(root, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
+  for (const name of migrations.filter(name => name !== "202609160001_learning_loop")) database.exec(readFileSync(new URL(`${name}/migration.sql`, root), "utf8"));
+  database.exec(`INSERT INTO Analysis(id,studentNickname,grade,subject,semester,updatedAt) VALUES('old-analysis','sample','7','math','2026',CURRENT_TIMESTAMP);
+    INSERT INTO Paper(id,analysisId,name) VALUES('old-paper','old-analysis','paper');
+    INSERT INTO Question(id,paperId,questionId,questionNo,questionText,studentAnswer,knowledgePoints,errorTags,evidence,confidence,updatedAt) VALUES('old-question','old-paper','1','1','original','answer','[]','[]','[]',1,CURRENT_TIMESTAMP);
+    INSERT INTO Report(id,analysisId,schemaVersion,templateVersion,statistics,reportSpec,updatedAt) VALUES('old-report','old-analysis','1','1','{}','{}',CURRENT_TIMESTAMP);
+    INSERT INTO PaperImage(id,paperId,fileName,storageKey,mimeType,size) VALUES('old-image','old-paper','test.png','private/test.png','image/png',100);
+    INSERT INTO AiRun(id,analysisId,node,status,attempt,inputJson,inputHash) VALUES('old-run','old-analysis','ocr','completed',1,'{}','cached-input');
+    INSERT INTO _app_migrations VALUES('sentinel','2026-09-16');`);
+  database.exec("BEGIN IMMEDIATE");
+  database.exec(readFileSync(new URL("202609160001_learning_loop/migration.sql", root), "utf8"));
+  database.exec("COMMIT");
+  for (const table of ["Analysis", "Paper", "Question", "Report", "PaperImage", "AiRun", "_app_migrations"]) assert.equal(database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count, 1, table);
+  assert.equal(database.prepare("SELECT questionText FROM Question").get().questionText, "original");
+  assert.equal(database.prepare("SELECT storageKey FROM PaperImage").get().storageKey, "private/test.png");
+  assert.equal(database.prepare("SELECT contextType FROM AiRun").get().contextType, "analysis");
+  assert.equal(database.prepare("SELECT inputHash FROM AiRun").get().inputHash, "cached-input");
+  assert.ok(database.prepare("PRAGMA index_list(AiRun)").all().some(index => index.name === "idx_ai_run_cache"));
+  assert.deepEqual(database.prepare("PRAGMA foreign_key_check").all(), []);
+  database.close();
+});

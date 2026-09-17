@@ -1,0 +1,43 @@
+.learning-tabs {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: #edf3ee;
+}
+.learning-tabs button {
+  background: transparent;
+  color: #536d5e;
+}
+.learning-tabs button[aria-pressed="true"] {
+  background: #fff;
+  color: #235d43;
+  box-shadow: 0 2px 6px #17352e0c;
+}
+.learning-task > div, .learning-section-heading > div { min-width: 0; }
+.learning-shell h2, .learning-shell h3, .learning-shell p, .learning-shell small {
+  overflow-wrap: anywhere;
+}
+.learning-task details summary { margin: 10px 0 0; }
+.learning-plan-management {
+  border-top: 1px solid #edf0e9;
+  margin-top: 12px;
+}
+.learning-attempt {
+  padding: 16px 0;
+  border-top: 1px solid #edf0e9;
+}
+.learning-history > summary { font-weight: 600; }
+.learning-shell.is-practicing .learning-hero,
+.learning-shell.is-practicing .learning-sidebar { display: none; }
+.learning-shell.is-practicing .learning-layout { display: block; }
+.learning-shell.is-practicing .learning-main { max-width: 820px; margin: auto; }
+.learning-shell.is-practicing .learning-empty { padding: 24px 16px; }
+.learning-section-heading { flex-wrap: wrap; }
+.learning-shell progress::-moz-progress-bar { background: #4a8b68; }
+@media (max-width: 540px) {
+  .learning-hero h1 { font-size: 30px; }
+  .learning-task { grid-template-columns: minmax(0, 1fr) auto; }
+  .learning-badge { white-space: normal; }
+}

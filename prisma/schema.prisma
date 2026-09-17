@@ -1,0 +1,374 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Analysis {
+  id              String    @id @default(cuid())
+  learnerId       String?
+  ownerId         String?
+  clientRequestId String?   @unique
+  mode            String    @default("SINGLE_STUDENT_SINGLE_PAPER")
+  studentNickname String
+  grade           String
+  subject         String
+  semester        String
+  status          String    @default("uploaded")
+  progress        Int       @default(0)
+  currentStep     String?
+  failureReason   String?
+  activeRunToken   String?
+  version         Int       @default(1)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  papers          Paper[]
+  jobs            Job[]
+  aiRuns           AiRun[]
+  report           Report?
+  deliverables     Deliverable[]
+
+  @@index([status, updatedAt], name: "idx_analysis_status_updated")
+}
+
+model Paper {
+  id          String     @id @default(cuid())
+  learnerId   String?
+  analysisId  String
+  studentNickname String?
+  name        String
+  examDate    DateTime?
+  maxScore    Float?
+  // 扫描读取的卷面总分（教师手写或扫描系统打印）与卷面印刷满分
+  totalScore      Float?
+  scannedMaxScore Float?
+  paperOrder  Int        @default(0)
+  createdAt   DateTime   @default(now())
+  analysis    Analysis   @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  images      PaperImage[]
+  questions   Question[]
+
+  @@index([analysisId, paperOrder], name: "idx_paper_analysis_order")
+}
+
+model PaperImage {
+  id              String   @id @default(cuid())
+  uploadRequestId String?  @unique
+  paperId         String
+  kind            String   @default("paper")
+  fileName        String
+  storageKey      String   @unique
+  processedKey    String?
+  mimeType        String
+  size            Int
+  pageOrder       Int      @default(0)
+  classification  String   @default("unknown")
+  /// 共用素材（多人同卷时试卷与答案只上传一份，所有学生共用）
+  shared          Boolean  @default(false)
+  qualityStatus   String   @default("pending")
+  qualityScore    Float?
+  width           Int?
+  height          Int?
+  createdAt       DateTime @default(now())
+  paper           Paper    @relation(fields: [paperId], references: [id], onDelete: Cascade)
+
+  @@index([paperId, kind, pageOrder], name: "idx_image_paper_kind_order")
+  @@unique([paperId, pageOrder], name: "uq_image_paper_page_order")
+}
+
+model Question {
+  id              String   @id @default(cuid())
+  paperId         String
+  questionId      String
+  questionNo      String
+  questionText    String
+  studentAnswer   String
+  score           Float?
+  maxScore        Float?
+  status          String   @default("unknown")
+  knowledgePoints Json
+  errorTags       Json
+  errorAnalysis   String?
+  aiPracticeQuestions Json @default("[]")
+  evidence        Json
+  confidence      Float
+  needsReview     Boolean  @default(false)
+  scoringBasis    String   @default("unavailable")
+  /// 卷面难度：基础 / 中档 / 难题（由提取节点按卷面判断）
+  difficulty      String?
+  version         Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  paper           Paper    @relation(fields: [paperId], references: [id], onDelete: Cascade)
+
+  @@unique([paperId, questionId], name: "uq_question_paper_external")
+  @@index([paperId, needsReview], name: "idx_question_paper_review")
+}
+
+model Job {
+  id            String    @id @default(cuid())
+  analysisId    String
+  lockKey       String?   @unique
+  runToken      String?
+  status        String    @default("queued")
+  progress      Int       @default(0)
+  currentStep   String?
+  error         String?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  analysis      Analysis  @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@index([analysisId, createdAt], name: "idx_job_analysis_created")
+  @@index([status, updatedAt], name: "idx_job_status_updated")
+}
+
+model AiRun {
+  id          String   @id @default(cuid())
+  analysisId  String?
+  contextType String   @default("analysis")
+  contextId   String?
+  node        String
+  status      String
+  attempt     Int
+  durationMs  Int?
+  inputJson   Json
+  outputJson  Json?
+  error       String?
+  inputHash   String?
+  createdAt   DateTime @default(now())
+  analysis    Analysis? @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@index([analysisId, node, createdAt], name: "idx_ai_run_analysis_node")
+  @@index([analysisId, node, inputHash], name: "idx_ai_run_cache")
+  @@index([contextType, contextId, createdAt])
+}
+
+model Learner {
+  id                String   @id @default(cuid())
+  ownerId           String?
+  nickname          String
+  grade             String
+  curriculumVersion String?
+  notes             String?
+  status            String   @default("active")
+  version           Int      @default(1)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  plans             LearningPlan[]
+  sessions          PracticeSession[]
+  masteries         KnowledgeMastery[]
+}
+
+model LearningPlan {
+  id               String   @id @default(cuid())
+  ownerId          String?
+  learnerId        String
+  sourceAnalysisId String
+  activeKey        String?  @unique
+  cycleDays        Int
+  dailyTaskLimit   Int
+  questionCount    Int
+  status           String   @default("active")
+  version          Int      @default(1)
+  revision         Int      @default(1)
+  evidenceLimited  Boolean  @default(false)
+  generatedAt      DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  learner          Learner  @relation(fields: [learnerId], references: [id])
+  tasks            LearningTask[]
+  @@index([learnerId, createdAt])
+  @@index([sourceAnalysisId])
+}
+
+model LearningTask {
+  id               String   @id @default(cuid())
+  planId           String
+  sourceQuestionId String?
+  knowledgePoint   String
+  subject          String
+  grade            String
+  title            String
+  targetLevel      Int      @default(3)
+  targetCount      Int      @default(5)
+  successCriteria  String
+  completedCount   Int      @default(0)
+  status           String   @default("pending")
+  dueDate          String
+  order            Int
+  version          Int      @default(1)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  plan             LearningPlan @relation(fields: [planId], references: [id])
+  questions        LearningTaskQuestion[]
+  sessions         PracticeSession[]
+  @@unique([planId, order])
+  @@index([planId, dueDate])
+}
+
+model PracticeQuestion {
+  id               String   @id @default(cuid())
+  sourceQuestionId String?
+  subject          String
+  grade            String
+  knowledgePoint   String
+  level            Int
+  type             String
+  content          String
+  options          Json     @default("[]")
+  referenceAnswer  String
+  explanation      String
+  hint             String
+  source           String
+  modelVersion     String
+  contentHash      String   @unique
+  qualityStatus    String   @default("validated")
+  status           String   @default("active")
+  version          Int      @default(1)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  tasks            LearningTaskQuestion[]
+  attempts         PracticeAttempt[]
+  @@index([sourceQuestionId, knowledgePoint, level, status])
+}
+
+model LearningTaskQuestion {
+  id         String   @id @default(cuid())
+  taskId     String
+  questionId String
+  order      Int
+  version    Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  task       LearningTask @relation(fields: [taskId], references: [id])
+  question   PracticeQuestion @relation(fields: [questionId], references: [id])
+  @@unique([taskId, questionId])
+  @@unique([taskId, order])
+}
+
+model PracticeSession {
+  id                  String   @id @default(cuid())
+  ownerId             String?
+  learnerId           String
+  taskId              String
+  activeTaskId        String?  @unique
+  status              String   @default("active")
+  currentLevel        Int      @default(1)
+  correctStreak       Int      @default(0)
+  wrongStreak         Int      @default(0)
+  effectiveAttempts   Int      @default(0)
+  nextQuestionId      String?
+  questionStatus      String   @default("generating")
+  generationToken     String?
+  generationStartedAt DateTime?
+  lastError           String?
+  version             Int      @default(1)
+  startedAt           DateTime @default(now())
+  completedAt         DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  learner             Learner  @relation(fields: [learnerId], references: [id])
+  task                LearningTask @relation(fields: [taskId], references: [id])
+  attempts            PracticeAttempt[]
+  @@index([learnerId, updatedAt])
+}
+
+model PracticeAttempt {
+  id              String   @id @default(cuid())
+  sessionId       String
+  questionId      String
+  clientAttemptId String   @unique
+  answer          String
+  status          String   @default("submitted")
+  gradingStatus   String   @default("submitted")
+  result          String?
+  confidence      Float?
+  feedback        String?
+  gradingToken    String?
+  gradingStartedAt DateTime?
+  gradingAttempts Int      @default(0)
+  masteryBefore   Float?
+  masteryAfter    Float?
+  version         Int      @default(1)
+  submittedAt     DateTime @default(now())
+  gradedAt        DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  session         PracticeSession @relation(fields: [sessionId], references: [id])
+  question        PracticeQuestion @relation(fields: [questionId], references: [id])
+  @@index([sessionId, submittedAt])
+}
+
+model KnowledgeMastery {
+  id             String   @id @default(cuid())
+  learnerId      String
+  subject        String
+  knowledgePoint String
+  score          Float
+  evidenceCount  Int      @default(0)
+  version        Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  learner        Learner @relation(fields: [learnerId], references: [id])
+  snapshots      MasterySnapshot[]
+  @@unique([learnerId, subject, knowledgePoint])
+}
+
+model MasterySnapshot {
+  id            String   @id @default(cuid())
+  masteryId     String
+  sourceType    String
+  sourceId      String
+  previousScore Float
+  newScore      Float
+  reason        String
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  mastery       KnowledgeMastery @relation(fields: [masteryId], references: [id])
+  @@unique([masteryId, sourceType, sourceId])
+}
+
+model LearningRequest {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  scope       String
+  fingerprint String
+  resourceId  String
+  createdAt   DateTime @default(now())
+}
+
+model Report {
+  id              String   @id @default(cuid())
+  analysisId      String   @unique
+  status          String   @default("ready")
+  schemaVersion   String
+  templateVersion String
+  statistics      Json
+  reportSpec      Json
+  version         Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  analysis        Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+}
+
+/// 报告之后按需生成的产物：学习计划、针对性作业、错题举一反三
+model Deliverable {
+  id         String   @id @default(cuid())
+  analysisId String
+  kind       String
+  title      String
+  payload    Json
+  version    Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  analysis   Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@unique([analysisId, kind], name: "uq_deliverable_analysis_kind")
+}

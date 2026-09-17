@@ -1,0 +1,3 @@
+ALTER TABLE "Analysis" ADD COLUMN "mode" TEXT NOT NULL DEFAULT 'SINGLE_STUDENT_SINGLE_PAPER';
+ALTER TABLE "Paper" ADD COLUMN "studentNickname" TEXT;
+UPDATE "Analysis" SET "mode" = 'SINGLE_STUDENT_MULTIPLE_PAPERS' WHERE (SELECT COUNT(*) FROM "Paper" WHERE "Paper"."analysisId" = "Analysis"."id") > 1;

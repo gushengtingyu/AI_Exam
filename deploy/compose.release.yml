@@ -1,0 +1,52 @@
+services:
+  app:
+    # Existing server image supplies Node 22, Chromium and fonts. No build/pull.
+    image: ${RUNTIME_IMAGE:?Set the verified local runtime image ID}
+    pull_policy: never
+    working_dir: /release
+    entrypoint: ["sh", "-c"]
+    command: ["node scripts/migrate-sqlite.mjs && exec node server.js"]
+    restart: unless-stopped
+    init: true
+    mem_limit: 768m
+    memswap_limit: 1024m
+    cpus: 0.75
+    pids_limit: 192
+    stop_grace_period: 120s
+    env_file: ["./runtime.env"]
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=384
+      NEXT_TELEMETRY_DISABLED: "1"
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      NEXT_PUBLIC_BASE_PATH: /semester-report
+      DATABASE_URL: file:/app/data/app.db
+      STORAGE_ROOT: /app/storage
+      APP_BASE_URL: http://127.0.0.1:3000
+      PUBLIC_APP_ORIGIN: https://yzhzjqzyyth.cn
+      PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/chromium
+      MALLOC_ARENA_MAX: "2"
+      MAX_ACTIVE_ANALYSES: "1"
+      MAX_ACTIVE_REPORT_EXPORTS: "1"
+      AI_PAGE_CONCURRENCY: "1"
+      AI_INSPECTION_NODE_CONCURRENCY: "1"
+      IMAGE_PREPROCESS_CONCURRENCY: "1"
+      AI_TEXT_CONCURRENCY: "2"
+      AI_OCR_CACHE_ENTRIES: "2"
+      AI_QUESTION_IMAGE_MAX_WIDTH: "1400"
+      AI_QUESTION_IMAGE_MAX_HEIGHT: "1800"
+    ports: ["127.0.0.1:3127:3000"]
+    volumes:
+      - ${RELEASE_DIR:?Set an immutable release directory}:/release
+      - /opt/semester-paper-insight/data:/app/data
+      - /opt/semester-paper-insight/storage:/app/storage
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/semester-report/api/health').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

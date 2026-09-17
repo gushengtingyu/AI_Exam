@@ -1,0 +1,41 @@
+node_modules/
+.next/
+.env
+.env.local
+.env.*
+!.env.example
+!deploy/.env.production.example
+data/
+storage/
+output/
+test-results/
+playwright-report/
+tmp/
+deploy/community.conf.remote
+*.log
+*.tsbuildinfo
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+__pycache__/
+*.py[cod]
+coverage/
+.DS_Store
+
+# Local-only files
+
+# Local business documents and their generators
+/docs/*.docx
+/tools/
+
+# Android local credentials (also covered by android/.gitignore)
+android/.signing/
+android/local.properties
+
+# Non-runtime report generators
+/scripts/generate_final_pdf_reports.py
+/scripts/generate_final_pdf_reports_v2.py
+/scripts/generate_compact_pdf_reports.py
+/scripts/generate-*-reports.mjs
